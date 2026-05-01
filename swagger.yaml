@@ -1,0 +1,70 @@
+openapi: "3.0.0"
+info:
+  title: Product Service API
+  version: "1.0.0"
+  description: Serverless Product Service built with AWS Lambda and API Gateway
+
+servers:
+  - url: https://r9rcu7ik4b.execute-api.eu-central-1.amazonaws.com/prod
+    description: Production
+
+paths:
+  /products:
+    get:
+      summary: Get all products
+      operationId: getProductsList
+      responses:
+        "200":
+          description: List of products
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Product"
+
+  /products/{productId}:
+    get:
+      summary: Get product by ID
+      operationId: getProductsById
+      parameters:
+        - name: productId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Single product
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+        "404":
+          description: Product not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+components:
+  schemas:
+    Product:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        price:
+          type: number
+        count:
+          type: number
+
+    Error:
+      type: object
+      properties:
+        message:
+          type: string
