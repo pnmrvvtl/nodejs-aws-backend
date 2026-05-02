@@ -20,6 +20,7 @@ type Product = {
   price: number;       // Price in USD
   count: number;       // Available stock
 }
+```
 
 ## Deployment
 
@@ -31,3 +32,4 @@ type Product = {
 ```bash
 npm install
 cdk deploy --profile cdk-deploy
+```
