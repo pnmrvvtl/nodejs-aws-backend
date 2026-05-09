@@ -22,6 +22,45 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/Product"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      summary: Create product
+      operationId: createProduct
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateProductRequest"
+            example:
+              title: Monitor Stand
+              description: Aluminum desk stand
+              price: 80
+              count: 10
+      responses:
+        "201":
+          description: Created product
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+        "400":
+          description: Invalid product data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
   /products/{productId}:
     get:
@@ -46,9 +85,40 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+        "400":
+          description: Product id is required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
 components:
   schemas:
+    CreateProductRequest:
+      type: object
+      required:
+        - title
+        - description
+        - price
+        - count
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        price:
+          type: number
+          minimum: 0
+        count:
+          type: integer
+          minimum: 0
+
     Product:
       type: object
       properties:
@@ -61,7 +131,7 @@ components:
         price:
           type: number
         count:
-          type: number
+          type: integer
 
     Error:
       type: object

@@ -1,6 +1,6 @@
 # Product Service
 
-Task 3 - AWS Lambda-based Product Service built with AWS CDK, API Gateway and Node.js.
+Task 4 - AWS Lambda-based Product Service built with AWS CDK, API Gateway, DynamoDB and Node.js.
 
 ## Deployed API
 
@@ -9,6 +9,21 @@ Base URL: `https://r9rcu7ik4b.execute-api.eu-central-1.amazonaws.com/prod`
 Products: `https://r9rcu7ik4b.execute-api.eu-central-1.amazonaws.com/prod/products`
 
 Product by id: `https://r9rcu7ik4b.execute-api.eu-central-1.amazonaws.com/prod/products/1`
+
+Create product: `POST https://r9rcu7ik4b.execute-api.eu-central-1.amazonaws.com/prod/products`
+
+Example create product body:
+
+```json
+{
+  "title": "Monitor Stand",
+  "description": "Aluminum desk stand",
+  "price": 80,
+  "count": 10
+}
+```
+
+`price` and `count` must be numbers. Numeric strings such as `"80"` are rejected with status `400`.
 
 ## Product Schema
 
