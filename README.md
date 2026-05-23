@@ -56,18 +56,55 @@ Uploaded files prefix: `uploaded/`
 
 Parsed files prefix: `parsed/`
 
-After a CSV file is uploaded to `uploaded/`, the `importFileParser` Lambda is triggered by an S3 `ObjectCreated` event. It reads the CSV file as a stream, logs each parsed row to CloudWatch, copies the processed file to `parsed/`, and removes the original file from `uploaded/`.
+After a CSV file is uploaded to `uploaded/`, the `importFileParser` Lambda is triggered by an S3 `ObjectCreated` event. It reads the CSV file as a stream, sends each parsed row to SQS, copies the processed file to `parsed/`, and removes the original file from `uploaded/`.
 
-Verified with `products-test.csv`:
+Task 5 was verified with `products-test.csv`:
 
 - File uploaded through the frontend import flow.
-- CSV rows appeared in `/aws/lambda/ImportServiceStack-importFileParser85B01032-nxs6mLZMvVIV` CloudWatch logs.
+- CSV rows were parsed by `/aws/lambda/ImportServiceStack-importFileParser85B01032-nxs6mLZMvVIV`.
 - File was moved from `uploaded/products-test.csv` to `parsed/products-test.csv`.
+
+## Async Microservices Communication
+
+Task 6 - Async communication with SQS and SNS.
+
+Flow:
+
+```text
+CSV file -> S3 uploaded/ -> importFileParser -> catalogItemsQueue -> catalogBatchProcess -> DynamoDB products/stocks -> createProductTopic
+```
+
+SQS Queue: `catalogItemsQueue`
+
+SQS Queue URL: `https://sqs.eu-central-1.amazonaws.com/708935702800/catalogItemsQueue`
+
+SNS Topic: `createProductTopic`
+
+SNS Topic ARN: `arn:aws:sns:eu-central-1:708935702800:createProductTopic`
+
+`catalogBatchProcess` is triggered from `catalogItemsQueue` with `batchSize: 5`.
+
+SNS subscriptions:
+
+- `pnmrv.vtl@gmail.com` receives products with `priceCategory = regular`.
+- `pnmrv.vtl+expensive@gmail.com` receives products with `priceCategory = expensive`.
+
+The `priceCategory` message attribute is published by `catalogBatchProcess`: products with `price >= 100` are `expensive`, all others are `regular`.
+
+Task 6 verification:
+
+- Uploaded `task6-products-20260523222106.csv` through the Import Service signed URL.
+- File moved to `s3://rs-back-import/parsed/task6-products-20260523222106.csv`.
+- `catalogItemsQueue` processed messages and returned to `ApproximateNumberOfMessages = 0`.
+- Products appeared in `GET /products`:
+  - `Task6 Regular 20260523222106`
+  - `Task6 Expensive 20260523222106`
 
 CDK outputs:
 
 - **ApiUrl:** https://023c4fjkl3.execute-api.eu-central-1.amazonaws.com/prod/
 - **ImportBucketName:** rs-back-import
+- **CatalogItemsQueueUrl:** https://sqs.eu-central-1.amazonaws.com/708935702800/catalogItemsQueue
 - **ImportServiceApiEndpoint08D58EAA:** https://023c4fjkl3.execute-api.eu-central-1.amazonaws.com/prod/
 
 ## Deploy

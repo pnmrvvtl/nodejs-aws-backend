@@ -1,11 +1,12 @@
 import { Context, S3Event } from "aws-lambda";
 import { Readable } from "stream";
 
-const mockSend = jest.fn<Promise<unknown>, [unknown]>();
+const mockS3Send = jest.fn<Promise<unknown>, [unknown]>();
+const mockSqsSend = jest.fn<Promise<unknown>, [unknown]>();
 
 jest.mock("@aws-sdk/client-s3", () => ({
   S3Client: jest.fn(() => ({
-    send: mockSend,
+    send: mockS3Send,
   })),
   GetObjectCommand: jest.fn((input: unknown) => ({ command: "GetObject", input })),
   CopyObjectCommand: jest.fn((input: unknown) => ({
@@ -14,6 +15,16 @@ jest.mock("@aws-sdk/client-s3", () => ({
   })),
   DeleteObjectCommand: jest.fn((input: unknown) => ({
     command: "DeleteObject",
+    input,
+  })),
+}));
+
+jest.mock("@aws-sdk/client-sqs", () => ({
+  SQSClient: jest.fn(() => ({
+    send: mockSqsSend,
+  })),
+  SendMessageCommand: jest.fn((input: unknown) => ({
+    command: "SendMessage",
     input,
   })),
 }));
@@ -71,6 +82,13 @@ function createCsvStream(): Readable {
   ]);
 }
 
+function createBomCsvStream(): Readable {
+  return Readable.from([
+    "\uFEFFtitle,description,price,count\n",
+    "Wireless Mouse,Ergonomic bluetooth mouse,25,12\n",
+  ]);
+}
+
 describe("importFileParser", () => {
   let consoleLogSpy: ReturnType<typeof jest.spyOn>;
 
@@ -78,7 +96,9 @@ describe("importFileParser", () => {
     consoleLogSpy = jest
       .spyOn(console, "log")
       .mockImplementation(() => undefined);
-    mockSend.mockReset();
+    process.env.CATALOG_ITEMS_QUEUE_URL = "https://sqs.example/catalogItemsQueue";
+    mockS3Send.mockReset();
+    mockSqsSend.mockReset();
   });
 
   afterEach(() => {
@@ -86,10 +106,11 @@ describe("importFileParser", () => {
   });
 
   test("reads uploaded CSV, copies to parsed, and deletes original", async () => {
-    mockSend
+    mockS3Send
       .mockResolvedValueOnce({ Body: createCsvStream() })
       .mockResolvedValueOnce({})
       .mockResolvedValueOnce({});
+    mockSqsSend.mockResolvedValue({});
 
     await handler(
       createEvent("uploaded/products.csv"),
@@ -97,14 +118,14 @@ describe("importFileParser", () => {
       () => undefined,
     );
 
-    expect(mockSend).toHaveBeenNthCalledWith(1, {
+    expect(mockS3Send).toHaveBeenNthCalledWith(1, {
       command: "GetObject",
       input: {
         Bucket: "rs-back-import",
         Key: "uploaded/products.csv",
       },
     });
-    expect(mockSend).toHaveBeenNthCalledWith(2, {
+    expect(mockS3Send).toHaveBeenNthCalledWith(2, {
       command: "CopyObject",
       input: {
         Bucket: "rs-back-import",
@@ -112,7 +133,7 @@ describe("importFileParser", () => {
         Key: "parsed/products.csv",
       },
     });
-    expect(mockSend).toHaveBeenNthCalledWith(3, {
+    expect(mockS3Send).toHaveBeenNthCalledWith(3, {
       command: "DeleteObject",
       input: {
         Bucket: "rs-back-import",
@@ -121,11 +142,12 @@ describe("importFileParser", () => {
     });
   });
 
-  test("logs parsed CSV rows", async () => {
-    mockSend
+  test("sends parsed CSV rows to SQS", async () => {
+    mockS3Send
       .mockResolvedValueOnce({ Body: createCsvStream() })
       .mockResolvedValueOnce({})
       .mockResolvedValueOnce({});
+    mockSqsSend.mockResolvedValue({});
 
     await handler(
       createEvent("uploaded/products.csv"),
@@ -133,25 +155,66 @@ describe("importFileParser", () => {
       () => undefined,
     );
 
-    expect(consoleLogSpy).toHaveBeenCalledWith("CSV record", {
-      title: "Wireless Mouse",
-      description: "Ergonomic bluetooth mouse",
-      price: "25",
-      count: "12",
+    expect(mockSqsSend).toHaveBeenCalledTimes(2);
+    expect(mockSqsSend).toHaveBeenCalledWith({
+      command: "SendMessage",
+      input: {
+        QueueUrl: "https://sqs.example/catalogItemsQueue",
+        MessageBody: JSON.stringify({
+          title: "Wireless Mouse",
+          description: "Ergonomic bluetooth mouse",
+          price: "25",
+          count: "12",
+        }),
+      },
     });
-    expect(consoleLogSpy).toHaveBeenCalledWith("CSV record", {
-      title: "USB-C Hub",
-      description: "Seven port aluminum USB-C hub",
-      price: "49",
-      count: "8",
+    expect(mockSqsSend).toHaveBeenCalledWith({
+      command: "SendMessage",
+      input: {
+        QueueUrl: "https://sqs.example/catalogItemsQueue",
+        MessageBody: JSON.stringify({
+          title: "USB-C Hub",
+          description: "Seven port aluminum USB-C hub",
+          price: "49",
+          count: "8",
+        }),
+      },
+    });
+  });
+
+  test("normalizes BOM in CSV headers", async () => {
+    mockS3Send
+      .mockResolvedValueOnce({ Body: createBomCsvStream() })
+      .mockResolvedValueOnce({})
+      .mockResolvedValueOnce({});
+    mockSqsSend.mockResolvedValue({});
+
+    await handler(
+      createEvent("uploaded/products.csv"),
+      mockContext,
+      () => undefined,
+    );
+
+    expect(mockSqsSend).toHaveBeenCalledWith({
+      command: "SendMessage",
+      input: {
+        QueueUrl: "https://sqs.example/catalogItemsQueue",
+        MessageBody: JSON.stringify({
+          title: "Wireless Mouse",
+          description: "Ergonomic bluetooth mouse",
+          price: "25",
+          count: "12",
+        }),
+      },
     });
   });
 
   test("decodes URL encoded S3 object key", async () => {
-    mockSend
+    mockS3Send
       .mockResolvedValueOnce({ Body: createCsvStream() })
       .mockResolvedValueOnce({})
       .mockResolvedValueOnce({});
+    mockSqsSend.mockResolvedValue({});
 
     await handler(
       createEvent("uploaded/products+with+spaces.csv"),
@@ -159,14 +222,14 @@ describe("importFileParser", () => {
       () => undefined,
     );
 
-    expect(mockSend).toHaveBeenNthCalledWith(1, {
+    expect(mockS3Send).toHaveBeenNthCalledWith(1, {
       command: "GetObject",
       input: {
         Bucket: "rs-back-import",
         Key: "uploaded/products with spaces.csv",
       },
     });
-    expect(mockSend).toHaveBeenNthCalledWith(2, {
+    expect(mockS3Send).toHaveBeenNthCalledWith(2, {
       command: "CopyObject",
       input: {
         Bucket: "rs-back-import",
@@ -177,7 +240,7 @@ describe("importFileParser", () => {
   });
 
   test("rejects when S3 object body is not a readable stream", async () => {
-    mockSend.mockResolvedValueOnce({ Body: "not-stream" });
+    mockS3Send.mockResolvedValueOnce({ Body: "not-stream" });
 
     await expect(
       handler(createEvent("uploaded/products.csv"), mockContext, () => undefined),

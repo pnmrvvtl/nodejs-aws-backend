@@ -1,14 +1,6 @@
 import { APIGatewayProxyHandler } from "aws-lambda";
-import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import {
-  DynamoDBDocumentClient,
-  TransactWriteCommand,
-} from "@aws-sdk/lib-dynamodb";
-import { randomUUID } from "crypto";
-import {
-  isCreateProductRequest,
-  ProductResponse,
-} from "../models/product";
+import { isCreateProductRequest } from "../models/product";
+import { createProductItem } from "../services/productService";
 import { getRequiredEnv } from "../utils/env";
 
 const headers = {
@@ -16,9 +8,6 @@ const headers = {
   "Access-Control-Allow-Headers": "*",
   "Content-Type": "application/json",
 };
-
-const client = new DynamoDBClient({});
-const documentClient = DynamoDBDocumentClient.from(client);
 
 function parseBody(body: string | null): unknown {
   if (!body) {
@@ -48,41 +37,11 @@ export const handler: APIGatewayProxyHandler = async (event) => {
 
     const productsTable = getRequiredEnv("PRODUCTS_TABLE");
     const stocksTable = getRequiredEnv("STOCKS_TABLE");
-    const id = randomUUID();
 
-    const product: ProductResponse = {
-      id,
-      title: parsedBody.title,
-      description: parsedBody.description,
-      price: parsedBody.price,
-      count: parsedBody.count,
-    };
-
-    await documentClient.send(
-      new TransactWriteCommand({
-        TransactItems: [
-          {
-            Put: {
-              TableName: productsTable,
-              Item: {
-                id: product.id,
-                title: product.title,
-                description: product.description,
-                price: product.price,
-              },
-            },
-          },
-          {
-            Put: {
-              TableName: stocksTable,
-              Item: {
-                product_id: product.id,
-                count: product.count,
-              },
-            },
-          },
-        ],
-      }),
+    const product = await createProductItem(
+      parsedBody,
+      productsTable,
+      stocksTable,
     );
 
     return {

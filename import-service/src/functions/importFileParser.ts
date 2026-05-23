@@ -5,10 +5,13 @@ import {
   GetObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
+import { SendMessageCommand, SQSClient } from "@aws-sdk/client-sqs";
 import csvParser from "csv-parser";
 import { Readable } from "stream";
+import { getRequiredEnv } from "../utils/env";
 
-const client = new S3Client({});
+const s3Client = new S3Client({});
+const sqsClient = new SQSClient({});
 
 type CsvRecord = Record<string, string>;
 
@@ -21,9 +24,13 @@ function parseCsvStream(stream: Readable): Promise<CsvRecord[]> {
     const records: CsvRecord[] = [];
 
     stream
-      .pipe(csvParser())
+      .pipe(
+        csvParser({
+          mapHeaders: ({ header }) => header.replace(/^\uFEFF/, "").trim(),
+          mapValues: ({ value }) => value.trim(),
+        }),
+      )
       .on("data", (record: CsvRecord) => {
-        console.log("CSV record", record);
         records.push(record);
       })
       .on("end", () => resolve(records))
@@ -35,12 +42,25 @@ function getDecodedKey(key: string): string {
   return decodeURIComponent(key.replace(/\+/g, " "));
 }
 
+async function sendRecordToQueue(
+  record: CsvRecord,
+  queueUrl: string,
+): Promise<void> {
+  await sqsClient.send(
+    new SendMessageCommand({
+      QueueUrl: queueUrl,
+      MessageBody: JSON.stringify(record),
+    }),
+  );
+}
+
 async function processRecord(record: S3Event["Records"][number]): Promise<void> {
   const bucketName = record.s3.bucket.name;
   const objectKey = getDecodedKey(record.s3.object.key);
   const parsedKey = objectKey.replace(/^uploaded\//, "parsed/");
+  const queueUrl = getRequiredEnv("CATALOG_ITEMS_QUEUE_URL");
 
-  const object = await client.send(
+  const object = await s3Client.send(
     new GetObjectCommand({
       Bucket: bucketName,
       Key: objectKey,
@@ -51,9 +71,13 @@ async function processRecord(record: S3Event["Records"][number]): Promise<void> 
     throw new Error("S3 object body is not a readable stream");
   }
 
-  await parseCsvStream(object.Body);
+  const records = await parseCsvStream(object.Body);
 
-  await client.send(
+  await Promise.all(
+    records.map((csvRecord) => sendRecordToQueue(csvRecord, queueUrl)),
+  );
+
+  await s3Client.send(
     new CopyObjectCommand({
       Bucket: bucketName,
       CopySource: `${bucketName}/${objectKey}`,
@@ -61,7 +85,7 @@ async function processRecord(record: S3Event["Records"][number]): Promise<void> 
     }),
   );
 
-  await client.send(
+  await s3Client.send(
     new DeleteObjectCommand({
       Bucket: bucketName,
       Key: objectKey,
