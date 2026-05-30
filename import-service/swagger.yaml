@@ -13,6 +13,8 @@ paths:
     get:
       summary: Get signed S3 upload URL for products CSV import
       operationId: importProductsFile
+      security:
+        - BasicAuth: []
       parameters:
         - name: name
           in: query
@@ -42,6 +44,10 @@ paths:
                 $ref: "#/components/schemas/Error"
 
 components:
+  securitySchemes:
+    BasicAuth:
+      type: http
+      scheme: basic
   schemas:
     Error:
       type: object

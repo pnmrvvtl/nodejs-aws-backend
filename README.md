@@ -107,6 +107,42 @@ CDK outputs:
 - **CatalogItemsQueueUrl:** https://sqs.eu-central-1.amazonaws.com/708935702800/catalogItemsQueue
 - **ImportServiceApiEndpoint08D58EAA:** https://023c4fjkl3.execute-api.eu-central-1.amazonaws.com/prod/
 
+## Authorization Service
+
+Task 7 - Authorization.
+
+Authorization Service contains `basicAuthorizer` Lambda. It checks Basic Authorization credentials against Lambda environment variables loaded from `authorization-service/.env`.
+
+Test user:
+
+```text
+pnmrvvtl=TEST_PASSWORD
+```
+
+Authorization token value for localStorage:
+
+```text
+cG5tcnZ2dGw6VEVTVF9QQVNTV09SRA==
+```
+
+Use it in browser console:
+
+```javascript
+localStorage.setItem("authorization_token", "cG5tcnZ2dGw6VEVTVF9QQVNTV09SRA==");
+```
+
+Authorized request:
+
+```bash
+curl -H "Authorization: Basic cG5tcnZ2dGw6VEVTVF9QQVNTV09SRA==" "https://023c4fjkl3.execute-api.eu-central-1.amazonaws.com/prod/import?name=products.csv"
+```
+
+Expected authorization behavior:
+
+- Missing `Authorization` header returns `401`.
+- Invalid Basic token returns `403`.
+- Valid Basic token returns signed S3 upload URL.
+
 ## Deploy
 
 ```bash

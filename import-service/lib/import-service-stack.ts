@@ -52,6 +52,21 @@ export class ImportServiceStack extends cdk.Stack {
 
     importBucket.grantPut(importProductsFile, "uploaded/*");
 
+    const basicAuthorizerFunction = lambda.Function.fromFunctionName(
+      this,
+      "basicAuthorizerFunction",
+      "basicAuthorizer",
+    );
+
+    const basicAuthorizer = new apigateway.TokenAuthorizer(
+      this,
+      "basicAuthorizer",
+      {
+        handler: basicAuthorizerFunction,
+        identitySource: apigateway.IdentitySource.header("Authorization"),
+      },
+    );
+
     const importFileParser = new nodejs.NodejsFunction(
       this,
       "importFileParser",
@@ -86,11 +101,29 @@ export class ImportServiceStack extends cdk.Stack {
       },
     });
 
+    api.addGatewayResponse("UnauthorizedGatewayResponse", {
+      type: apigateway.ResponseType.UNAUTHORIZED,
+      responseHeaders: {
+        "Access-Control-Allow-Origin": "'*'",
+        "Access-Control-Allow-Headers": "'*'",
+      },
+    });
+
+    api.addGatewayResponse("AccessDeniedGatewayResponse", {
+      type: apigateway.ResponseType.ACCESS_DENIED,
+      responseHeaders: {
+        "Access-Control-Allow-Origin": "'*'",
+        "Access-Control-Allow-Headers": "'*'",
+      },
+    });
+
     const importResource = api.root.addResource("import");
     importResource.addMethod(
       "GET",
       new apigateway.LambdaIntegration(importProductsFile),
       {
+        authorizer: basicAuthorizer,
+        authorizationType: apigateway.AuthorizationType.CUSTOM,
         requestParameters: {
           "method.request.querystring.name": true,
         },
