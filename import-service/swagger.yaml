@@ -1,0 +1,56 @@
+openapi: "3.0.0"
+info:
+  title: Import Service API
+  version: "1.0.0"
+  description: Serverless Import Service for uploading products CSV files to S3
+
+servers:
+  - url: https://023c4fjkl3.execute-api.eu-central-1.amazonaws.com/prod
+    description: Production
+
+paths:
+  /import:
+    get:
+      summary: Get signed S3 upload URL for products CSV import
+      operationId: importProductsFile
+      security:
+        - BasicAuth: []
+      parameters:
+        - name: name
+          in: query
+          required: true
+          schema:
+            type: string
+          example: products.csv
+      responses:
+        "200":
+          description: Signed S3 PUT URL
+          content:
+            application/json:
+              schema:
+                type: string
+              example: "https://rs-back-import.s3.eu-central-1.amazonaws.com/uploaded/products.csv?X-Amz-Algorithm=AWS4-HMAC-SHA256"
+        "400":
+          description: File name is required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+components:
+  securitySchemes:
+    BasicAuth:
+      type: http
+      scheme: basic
+  schemas:
+    Error:
+      type: object
+      properties:
+        message:
+          type: string
