@@ -1,0 +1,28 @@
+{
+  "name": "authorization-service",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "tsc",
+    "cdk": "cdk",
+    "deploy": "cdk deploy --profile cdk-deploy --require-approval never",
+    "test": "jest"
+  },
+  "description": "Authorization Service for Basic authorization.",
+  "license": "ISC",
+  "dependencies": {
+    "aws-cdk-lib": "^2.257.0",
+    "constructs": "^10.6.0",
+    "dotenv": "^17.4.2"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.161",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^25.9.1",
+    "aws-cdk": "^2.1125.0",
+    "esbuild": "^0.28.0",
+    "jest": "^30.4.2",
+    "ts-jest": "^29.4.11",
+    "ts-node": "^10.9.2",
+    "typescript": "^6.0.3"
+  }
+}
