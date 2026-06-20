@@ -1,0 +1,18 @@
+branch-defaults:
+  default:
+    environment: bff-prod
+    group_suffix: null
+global:
+  application_name: pnmrvvtl-bff-api
+  branch: null
+  default_ec2_keyname: null
+  default_platform: Docker
+  default_region: eu-central-1
+  include_git_submodules: true
+  instance_profile: null
+  platform_name: null
+  platform_version: null
+  profile: cdk-deploy
+  repository: null
+  sc: null
+  workspace_type: Application
